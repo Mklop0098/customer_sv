@@ -34,7 +34,8 @@ class EventStorageService {
             for (const event of events) {
                 const tableName = event.table_name;
                 const eventType = event.event_type;
-                const data = JSON.parse(event.data); // dữ liệu cũ trước khi thay đổi
+                console.log(event.data)
+                const data = event.data; // dữ liệu cũ trước khi thay đổi
 
                 if (eventType === 'create') {
                     // Nếu event là tạo mới → rollback = xóa record
@@ -49,7 +50,7 @@ class EventStorageService {
                     const keys = Object.keys(data).filter(key => key !== 'id');
                     const values = keys.map(key => data[key]);
                     const setClause = keys.map(key => `\`${key}\` = ?`).join(', ');
-
+                    console.log(`UPDATE \`${tableName}\` SET ${setClause} WHERE id = ?`, [...values, id])
                     await conn.query(
                         `UPDATE \`${tableName}\` SET ${setClause} WHERE id = ?`,
                         [...values, id]

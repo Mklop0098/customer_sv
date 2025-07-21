@@ -2,17 +2,15 @@ import { Request, Response, NextFunction } from "express";
 import { sendResponse } from "@core/utils";
 import { Create } from "./dtos/create.dto";
 import message from "@core/config/constants";
-import CustomerServices from "./customer.service";
-import { Update } from "./dtos/update.dto";
+import CustomerGroupServices from "./customer_group.service";
 
-class CustomerController {
-    public customerServices = new CustomerServices();
+class CustomerGroupController {
+    public customerGroupServices = new CustomerGroupServices();
+
     public create = async (req: Request, res: Response, next: NextFunction) => {
         const model: Create = req.body as Create;
-        model.created_id = req.id;
-        model.seller_id = req.seller_id;
         try {
-            const result = await this.customerServices.create(model);
+            const result = await this.customerGroupServices.create(model);
             if (result instanceof Error && result.field)
                 return sendResponse(res, result.status, result.message, null, result.field);
             if (result instanceof Error)
@@ -22,52 +20,58 @@ class CustomerController {
             next(error);
         }
     }
+
     public update = async (req: Request, res: Response, next: NextFunction) => {
-        const model: Update = req.body as Update;
-        model.customer_id = req.params.id as any;
+        const model: Create = req.body as Create;
         try {
-            const result = await this.customerServices.update(model);
+            const result = await this.customerGroupServices.update(model);
             if (result instanceof Error && result.field)
                 return sendResponse(res, result.status, result.message, null, result.field);
             if (result instanceof Error)
                 return sendResponse(res, result.status, result.message);
-            return sendResponse(res, 200, message.UPDATE_SUCCESS, result);
+            return sendResponse(res, 200, message.UPDATE_FAILED, result);
         } catch (error) {
             next(error);
         }
-    }   
+    }
 
-    public getDetail = async (req: Request, res: Response, next: NextFunction) => {
-        const id = req.params.id as any;
-        const created_id = req.id;
-        const seller_id = req.seller_id;
+    public getAll = async (req: Request, res: Response, next: NextFunction) => {
         try {
-            const result = await this.customerServices.getDetail(id, created_id, seller_id);
-            if (result instanceof Error && result.field)
-                return sendResponse(res, result.status, result.message, null, result.field);
+            const result = await this.customerGroupServices.getAll();
             if (result instanceof Error)
                 return sendResponse(res, result.status, result.message);
-            return sendResponse(res, 200, message.GET_DETAIL_SUCCESS, result);
+            return sendResponse(res, 200, 'Lấy danh sách nhóm thành công', result);
         } catch (error) {
             next(error);
         }
-    }   
+    }
 
-    public search = async (req: Request, res: Response, next: NextFunction) => {
-        const seller_id = req.seller_id as number;
-        const created_id = req.id as number;
-        const role = req.role_id as number[];
-        const {page, limit, created_by, key, group_id} = req.query as any;
+    public getById = async (req: Request, res: Response, next: NextFunction) => {
+        const groupId = parseInt(req.params.groupId);
         try {
-            const result = await this.customerServices.search(seller_id, created_id, role, key, created_by, group_id, page, limit);
+            const result = await this.customerGroupServices.getById(groupId);
+            if (result instanceof Error)
+                return sendResponse(res, result.status, result.message);
+            return sendResponse(res, 200, 'Lấy thông tin nhóm thành công', result);
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    public delete = async (req: Request, res: Response, next: NextFunction) => {
+        const groupId = parseInt(req.params.groupId);
+        const transactionCode = req.body.transaction_code;
+        try {
+            const result = await this.customerGroupServices.delete(groupId, transactionCode);
             if (result instanceof Error && result.field)
                 return sendResponse(res, result.status, result.message, null, result.field);
             if (result instanceof Error)
                 return sendResponse(res, result.status, result.message);
-            return sendResponse(res, 200, message.GET_DETAIL_SUCCESS, result);
+            return sendResponse(res, 200, 'Xóa nhóm thành công', result);
         } catch (error) {
             next(error);
         }
-    }   
+    }
 }
-export default CustomerController;
+
+export default CustomerGroupController; 

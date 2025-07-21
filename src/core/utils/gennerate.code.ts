@@ -4,23 +4,11 @@ import { checkExist } from "./checkExist"
 import { HttpException } from "@core/exceptions"
 import errorMessages from "@core/config/constants"
 import crypto from "crypto";
+import { PoolConnection } from "mysql2/promise";
 
-export async function generateCode(type: string, length: number) {
-    let key = ''
-    let pre = ''
-    if (type == 'customer') {
-        key = 'affiliate_customer'
-        pre = 'AFC'
-    }
-    if (type == 'service_package') {
-        key = 'service_pack'
-        pre = 'DV'
-    }
-    if (type == 'seller') {
-        key = 'seller'
-        pre = 'S'
-    }
-    const lastRow = await database.executeQuery(`SELECT id, code FROM ${key} ORDER BY id DESC LIMIT 1`)
+export async function generateCodeConn(conn: PoolConnection, length: number, seller_id?: number, created_id?: number) {
+    let pre = 'AFT'
+    const [lastRow] = await conn.query<RowDataPacket[]>(`SELECT id, code FROM customers WHERE seller_id = ? AND created_id = ? ORDER BY id DESC LIMIT 1`, [seller_id, created_id])
     let codeNumber = ''
     if (Array.isArray(lastRow) && lastRow.length == 0) {
         codeNumber = '1'.padStart(length - pre.length, '0')

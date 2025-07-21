@@ -4,47 +4,90 @@ import { sendResponse } from '@core/utils';
 import { checkExist } from '@core/utils/checkExist';
 import errorMessages from '@core/config/constants';
 import { getUrlAction } from '@core/utils/getUrlAction';
+import axios from 'axios';
 class AuthMiddleware {
-    public static authorization(isCheckPermission = false) {
-        if (isCheckPermission == false) {
-            return this.authorizationWithPermissionCheck(false);
-        } else {
-            return this.authorizationWithPermissionCheck(true);
-        }
-    }
-    public static authorizationWithPermissionCheck = (isCheckPermission: boolean) => {
+    // public static authorization(isCheckPermission = false) {
+    //     if (isCheckPermission == false) {
+    //         return this.authorizationWithPermissionCheck(false);
+    //     } else {
+    //         return this.authorizationWithPermissionCheck(true);
+    //     }
+    // }
+    public static authorization = (isCheckPermission = false) => {
         return async (req: Request, res: Response, next: NextFunction) => {
             const token = req.header('Authorization')?.replace('Bearer ', '');
             if (!token) {
-                return sendResponse(res, 401, 'Vui lòng đăng nhập');
+                next()
             }
-            let { url, action } = getUrlAction(req);
-            if (req.header('url')) {
-                url = req.header('url') as string;
-            }
-            if (req.header('action')) {
-                action = req.header('url') as string;
-            }
-            try {
-                const decoded = jwt.verify(token, process.env.JWT_SECRET as string) as JwtPayload;
-                if (decoded && typeof decoded === 'object' && 'id' in decoded) {
-                    const check = await checkExist('accounts', 'id', decoded.id.toString());
-                    if (!check) {
-                        return sendResponse(res, 401, 'Tài khoản không tồn tại');
-                    }
-                    if (check[0].active === 0) {
-                        return sendResponse(res, 423, errorMessages.USER_BLOCKED);
-                    }
-                    req.id = check[0].id;
-                    req.seller_id = check[0].seller_id;
-                    req.ref_id = check[0].ref_id;
-                    req.type = check[0].type;
-                    next();
-                } else {
-                    return sendResponse(res, 403, 'Token không hợp lệ');
+            else {
+                let { url, action } = getUrlAction(req);
+                if (req.header('url')) {
+                    url = req.header('url') as string;
                 }
-            } catch (error) {
-                return sendResponse(res, 401, error instanceof Error ? error.message : 'Xác thực token thất bại');
+                if (req.header('action')) {
+                    action = req.header('url') as string;
+                }
+                const body = isCheckPermission ? {
+                    url: url,
+                    action: action,
+                    token: token
+                } : {
+                    token: token
+                }
+                try {
+                    const response = await axios.post(`${process.env.SERVER_AUTH_URL}/api/v1/auth/check-token`, body)
+                    console.log(response.data);
+                    if (response.status === 200) {
+                        req.id = response.data.data.id;
+                        req.seller_id = response.data.data.seller_id;
+                        req.ref_id = response.data.data.ref_id;
+                        req.type = response.data.data.type;
+                    }
+                    next();
+                } catch (error) {
+                    return sendResponse(res, 400, error instanceof Error ? error.message : 'Xác thực token thất bại');
+                }
+
+            }
+        };
+    };
+
+    public static authorizationStrict = (isCheckPermission: boolean) => {
+        return async (req: Request, res: Response, next: NextFunction) => {
+            const token = req.header('Authorization')?.replace('Bearer ', '');
+            if (!token) {
+                return sendResponse(res, 400, 'Vui lòng đăng nhập');
+            }
+            else {
+                let { url, action } = getUrlAction(req);
+                if (req.header('url')) {
+                    url = req.header('url') as string;
+                }
+                if (req.header('action')) {
+                    action = req.header('url') as string;
+                }
+                const body = isCheckPermission ? {
+                    url: url,
+                    action: action,
+                    token: token
+                } : {
+                    token: token
+                }
+                try {
+                    const response = await axios.post(`${process.env.SERVER_AUTH_URL}/api/v1/auth/check-token`, body)
+                    console.log(response.data);
+                    if (response.status === 200) {
+                        req.id = response.data.data.id;
+                        req.seller_id = response.data.data.seller_id;
+                        req.ref_id = response.data.data.ref_id;
+                        req.type = response.data.data.type;
+                        req.role_id = response.data.data.role_id;
+                    }
+                    next();
+                } catch (error) {
+                    return sendResponse(res, 400, error instanceof Error ? error.message : 'Xác thực token thất bại');
+                }
+
             }
         };
     };
