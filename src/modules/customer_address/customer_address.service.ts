@@ -1,6 +1,6 @@
 import { HttpException } from "@core/exceptions";
 import database from "@core/config/database";
-import { PoolConnection, ResultSetHeader } from "mysql2/promise";
+import { PoolConnection, ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { Create } from "./dtos/create.dto";
 import { checkExistConn } from "@core/utils/checkExist";
 import errorMessages from "@core/config/constants";
@@ -18,7 +18,7 @@ class CustomerAddressServices {
                 if (model.customer_type == 'CUSTOMER') {
                     model.customer_id = model.ref_id;
                 }
-                const checkCustomer = await checkExistConn(trx, 'customers', 'id', model.customer_id!, model.seller_id);
+                const checkCustomer = await checkExistConn(trx, 'customers', 'id', model.customer_id!, undefined, model.seller_id);
                 if (!checkCustomer) {
                     throw new HttpException(400, 'Khách hàng không tồn tại', 'customer_id');
                 }
@@ -73,7 +73,7 @@ class CustomerAddressServices {
                 };
             }, conn);
         } catch (error: any) {
-            if (isExternalConn) throw error; 
+            if (isExternalConn) throw error;
             return new HttpException(400, error.message || 'Lỗi khi tạo địa chỉ');
         }
     };
@@ -128,7 +128,7 @@ class CustomerAddressServices {
                 };
             }, conn);
         } catch (error: any) {
-            if (isExternalConn) throw error; 
+            if (isExternalConn) throw error;
             return new HttpException(400, error.message || 'Lỗi khi cập nhật địa chỉ');
         }
     };
@@ -152,21 +152,83 @@ class CustomerAddressServices {
         }
     }
 
-    public delete = async (addressId: number) => {
+    public delete = async (addressId: number, customerId: number, seller_id: number) => {
+        console.log(addressId, customerId, seller_id)
         const conn = await database.getConnection();
         try {
             await conn.beginTransaction();
-
-            const exist = await checkExistConn(conn, this.tableName, 'id', addressId);
-            if (!exist) {
+            if (seller_id === customerId) {
+                throw new HttpException(400, 'Thiếu thông tin khách hàng');
+            }
+            const [exist] = await conn.query<RowDataPacket[]>(
+                `   select c.id, c.seller_id, ca.is_default from customers c
+                    left join customer_address ca on ca.customer_id = c.id
+                    where ca.id = ?
+                `,
+                [addressId]
+            );
+            if (exist.length < 1) {
                 throw new HttpException(400, 'Địa chỉ không tồn tại', 'address_id');
             }
-
+            if (exist[0].seller_id != seller_id || exist[0].id != customerId) {
+                throw new HttpException(400, 'Bạn không có quyền thực hiện thao tác này');
+            }
+            if (exist[0].is_default == 1) {
+                throw new HttpException(400, 'Không thể xóa địa chỉ mặc định', 'address_id');
+            }
             const query = `DELETE FROM ${this.tableName} WHERE id = ?`;
             const [result] = await conn.query<ResultSetHeader>(query, [addressId]);
 
             if (result.affectedRows < 1) {
                 throw new HttpException(400, 'Xóa địa chỉ thất bại', 'delete');
+            }
+            await conn.commit();
+            return {
+                data: {
+                    id: addressId
+                }
+            }
+        } catch (error: any) {
+            await conn.rollback();
+            return new HttpException(400, error.message);
+        } finally {
+            conn.release();
+        }
+    }
+
+    public updateDefaultAddress = async (addressId: number, customerId: number, seller_id: number) => {
+        console.log(addressId, customerId, seller_id)
+        const conn = await database.getConnection();
+        try {
+            await conn.beginTransaction();
+            const [exist] = await conn.query<RowDataPacket[]>(
+                `   select c.id, c.seller_id from customers c
+                    left join customer_address ca on ca.customer_id = c.id
+                    where ca.id = ?
+                `,
+                [addressId]
+            );
+            if (exist.length < 1) {
+                throw new HttpException(400, 'Địa chỉ không tồn tại', 'address_id');
+            }
+            if (exist[0].seller_id != seller_id || exist[0].id != customerId) {
+                throw new HttpException(400, 'Bạn không có quyền thực hiện thao tác này');
+            }
+            const removeQuery = `UPDATE ${this.tableName} SET is_default = 0 WHERE customer_id = ? AND id != ?`;
+            console.log(removeQuery, [customerId, addressId])
+            const [removeDefault] = await conn.query<ResultSetHeader>(
+                removeQuery,
+                [customerId, addressId]
+            );
+
+            if (removeDefault.affectedRows < 1) {
+                throw new HttpException(400, 'Cập nhật địa chỉ mặc định thất bại', 'removeDefault');
+            }
+            const query = `UPDATE ${this.tableName} SET is_default = 1 WHERE id = ?`;
+            console.log(query, [addressId])
+            const [result] = await conn.query<ResultSetHeader>(query, [addressId]);
+            if (result.affectedRows < 1) {
+                throw new HttpException(400, 'Cập nhật địa chỉ mặc định thất bại', 'update');
             }
             await conn.commit();
             return {

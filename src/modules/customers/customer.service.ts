@@ -234,7 +234,7 @@ class CustomerServices {
         const conn = await database.getConnection();
         try {
             await conn.beginTransaction();
-    
+
             const [result] = await conn.query<RowDataPacket[]>(`
                 SELECT
                     c.id,
@@ -269,14 +269,14 @@ class CustomerServices {
                 ${seller_id ? `AND c.seller_id = ?` : ''}
                 GROUP BY c.id
             `, [id, created_id, seller_id]);
-    
+
             if (result.length < 1) {
                 throw new HttpException(400, errorMessages.NOT_FOUND, 'id');
             }
-    
+
             // ✅ Tái sử dụng hàm xử lý địa chỉ
             const [customer] = await enrichCustomerAddresses(result);
-    
+
             await conn.commit();
             return {
                 data: customer
@@ -331,7 +331,8 @@ class CustomerServices {
                     c.name LIKE '%${key}%' OR
                     c.phone LIKE '%${key}%' OR
                     c.email LIKE '%${key}%' OR
-                    c.code LIKE '%${key}%'
+                    c.code LIKE '%${key}%' OR
+                    c.nickname LIKE '%${key}%'
                 )` : ''}
                 ${group_id ? ` AND c.group_id = ${group_id}` : ''}
                 GROUP BY c.id
@@ -342,15 +343,15 @@ class CustomerServices {
             }
             console.log(query)
             const [result] = await conn.query<RowDataPacket[]>(query);
-    
+
             if (result.length < 1) {
                 throw new HttpException(400, errorMessages.NOT_FOUND, 'id');
             }
-    
+
             const customers = await enrichCustomerAddresses(result);
-    
+
             await conn.commit();
-            return { 
+            return {
                 data: customers,
                 pagination: caculatePagination(count.length, page, limit)
             };

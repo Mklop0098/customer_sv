@@ -6,7 +6,7 @@ import CustomerAddressServices from "./customer_address.service";
 
 class CustomerAddressController {
     public customerAddressServices = new CustomerAddressServices();
-    
+
     public create = async (req: Request, res: Response, next: NextFunction) => {
         const model: Create = req.body as Create;
         model.seller_id = req.seller_id as number;
@@ -52,13 +52,31 @@ class CustomerAddressController {
 
     public delete = async (req: Request, res: Response, next: NextFunction) => {
         const addressId = req.params.addressId as any;
+        const customerId = req.body.customer_id || req.ref_id as number;
+        const seller_id = req.seller_id as number;
         try {
-            const result = await this.customerAddressServices.delete(addressId);
+            const result = await this.customerAddressServices.delete(addressId, customerId, seller_id);
             if (result instanceof Error && result.field)
                 return sendResponse(res, result.status, result.message, null, result.field);
             if (result instanceof Error)
                 return sendResponse(res, result.status, result.message);
             return sendResponse(res, 200, 'Xóa địa chỉ thành công', result);
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    public updateDefaultAddress = async (req: Request, res: Response, next: NextFunction) => {
+        const addressId = req.params.addressId as any;
+        const customerId = req.body.customer_id || req.ref_id as number;
+        const seller_id = req.seller_id as number;
+        try {
+            const result = await this.customerAddressServices.updateDefaultAddress(addressId, customerId, seller_id);
+            if (result instanceof Error && result.field)
+                return sendResponse(res, result.status, result.message, null, result.field);
+            if (result instanceof Error)
+                return sendResponse(res, result.status, result.message);
+            return sendResponse(res, 200, 'Cập nhật địa chỉ mặc định thành công', result);
         } catch (error) {
             next(error);
         }

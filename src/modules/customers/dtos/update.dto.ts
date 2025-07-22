@@ -28,7 +28,6 @@ export class Update {
     @IsIn(['MALE', 'FEMALE', 'OTHER'], { message: 'Giới tính không hợp lệ' })
     gender?: string
 
-    @IsISO8601({ strict: true }, { message: 'Ngày sinh phải đúng định dạng YYYY-MM-DD'})
     @IsOptional()
     @IsBeforeToday({ message: 'Ngày sinh phải nhỏ hơn ngày hiện tại' })
     birthdate?: string

@@ -13,10 +13,11 @@ class CustomerAddressRoute implements IRoute {
     constructor() {
         this.initializeRoutes();
     }
-    
+
     private initializeRoutes() {
-        this.router.post(this.path + '/',  AuthMiddleware.authorizationStrict(false), errorMiddleware(Create, 'body', false), this.customerAddressController.create);
-        this.router.delete(this.path + '/:addressId', this.customerAddressController.delete);
+        this.router.post(this.path + '/', AuthMiddleware.authorizationStrict(false), errorMiddleware(Create, 'body', false), this.customerAddressController.create);
+        this.router.delete(this.path + '/:addressId', AuthMiddleware.authorizationStrict(false), this.customerAddressController.delete);
+        this.router.put(this.path + '/default/:addressId', AuthMiddleware.authorizationStrict(false), this.customerAddressController.updateDefaultAddress);
         // this.router.put(this.path + '/', errorMiddleware(Create, 'body', false), this.customerAddressController.update);
         // this.router.get(this.path + '/customer/:customerId', this.customerAddressController.getByCustomerId);
     }
