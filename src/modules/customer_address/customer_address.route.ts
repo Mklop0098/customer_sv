@@ -3,6 +3,7 @@ import { IRoute } from "@core/interfaces";
 import { AuthMiddleware, errorMiddleware } from "@core/middleware";
 import { Router } from "express";
 import { Create } from "./dtos/create.dto";
+import { UpdateDto } from "./dtos/update.dto";
 
 class CustomerAddressRoute implements IRoute {
     public path = '/customer-address';
@@ -17,7 +18,7 @@ class CustomerAddressRoute implements IRoute {
     private initializeRoutes() {
         this.router.post(this.path + '/', AuthMiddleware.authorizationStrict(false), errorMiddleware(Create, 'body', false), this.customerAddressController.create);
         this.router.delete(this.path + '/:addressId', AuthMiddleware.authorizationStrict(false), this.customerAddressController.delete);
-        this.router.put(this.path + '/default/:addressId', AuthMiddleware.authorizationStrict(false), this.customerAddressController.updateDefaultAddress);
+        this.router.put(this.path + '/:addressId', AuthMiddleware.authorizationStrict(false), errorMiddleware(UpdateDto, 'body', false), this.customerAddressController.update);
         // this.router.put(this.path + '/', errorMiddleware(Create, 'body', false), this.customerAddressController.update);
         // this.router.get(this.path + '/customer/:customerId', this.customerAddressController.getByCustomerId);
     }

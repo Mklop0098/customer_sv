@@ -12,6 +12,7 @@ class CustomerAddressServices {
     private eventStorageService = new EventStorageService();
 
     public create = async (model: Create, conn?: PoolConnection) => {
+        console.log(model)
         const isExternalConn = !!conn;
         try {
             return await withTransaction(async (trx) => {
@@ -24,7 +25,7 @@ class CustomerAddressServices {
                 }
 
                 if (model.is_default == 1) {
-                    const [result] = await trx.query(
+                    await trx.query(
                         `UPDATE ${this.tableName} SET is_default = 0 WHERE customer_id = ?`,
                         [model.customer_id]
                     );
@@ -33,17 +34,7 @@ class CustomerAddressServices {
                     INSERT INTO ${this.tableName} (customer_id, name, phone, city_id, ward_id, address, address_type, is_default, old_address)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 `
-                console.log(query, [
-                    model.customer_id,
-                    model.name,
-                    model.phone,
-                    model.city_id,
-                    model.ward_id,
-                    model.address,
-                    model.address_type || 'NHA_RIENG',
-                    model.is_default || 1,
-                    model.old_address || null
-                ])
+                console.log(model, model.old_address)
                 const [result] = await trx.query<ResultSetHeader>(query,
                     [
                         model.customer_id,
@@ -78,22 +69,35 @@ class CustomerAddressServices {
         }
     };
     public update = async (model: Create, conn?: PoolConnection) => {
+        console.log(model)
         const isExternalConn = !!conn;
 
         try {
             return await withTransaction(async (trx) => {
-                const exist = await checkExistConn(trx, this.tableName, 'id', model.address_id!);
-                if (!exist) {
+
+                const [exist] = await trx.query<RowDataPacket[]>(
+                    `   select c.id, c.seller_id from customers c
+                    left join customer_address ca on ca.customer_id = c.id
+                    where ca.id = ?
+                    `,
+                    [model.address_id]
+                );
+                if (exist.length < 1) {
                     throw new HttpException(400, 'Địa chỉ không tồn tại', 'address_id');
                 }
-
+                if (exist[0].seller_id != model.seller_id || exist[0].id != model.customer_id) {
+                    throw new HttpException(400, 'Bạn không có quyền thực hiện thao tác này');
+                }
+                
                 if (model.is_default == 1) {
                     await trx.query(
                         `UPDATE ${this.tableName} SET is_default = 0 WHERE customer_id = ? AND id != ?`,
                         [exist[0].customer_id, model.address_id]
                     );
                 }
-
+                else if (exist.length == 1) {
+                    throw new HttpException(400, 'Phải có một địa chỉ mặc định', 'address_id');
+                }
                 let query = `UPDATE ${this.tableName} SET updated_at = NOW()`;
                 const values: any[] = [];
 
@@ -102,6 +106,7 @@ class CustomerAddressServices {
                 if (model.city_id) query += `, city_id = ?`, values.push(model.city_id);
                 if (model.ward_id) query += `, ward_id = ?`, values.push(model.ward_id);
                 if (model.address) query += `, address = ?`, values.push(model.address);
+                if (model.old_address) query += `, old_address = ?`, values.push(model.old_address);
                 if (model.address_type) query += `, address_type = ?`, values.push(model.address_type);
                 if (model.is_default !== undefined) query += `, is_default = ?`, values.push(model.is_default);
 
@@ -113,7 +118,7 @@ class CustomerAddressServices {
                     throw new HttpException(400, 'Cập nhật thất bại', 'update');
                 }
 
-                await this.eventStorageService.create(trx, {
+                model.transaction_code && await this.eventStorageService.create(trx, {
                     table_name: this.tableName,
                     event_type: 'update',
                     data: { ...exist[0] },
@@ -196,53 +201,48 @@ class CustomerAddressServices {
         }
     }
 
-    public updateDefaultAddress = async (addressId: number, customerId: number, seller_id: number) => {
-        console.log(addressId, customerId, seller_id)
-        const conn = await database.getConnection();
-        try {
-            await conn.beginTransaction();
-            const [exist] = await conn.query<RowDataPacket[]>(
-                `   select c.id, c.seller_id from customers c
-                    left join customer_address ca on ca.customer_id = c.id
-                    where ca.id = ?
-                `,
-                [addressId]
-            );
-            if (exist.length < 1) {
-                throw new HttpException(400, 'Địa chỉ không tồn tại', 'address_id');
-            }
-            if (exist[0].seller_id != seller_id || exist[0].id != customerId) {
-                throw new HttpException(400, 'Bạn không có quyền thực hiện thao tác này');
-            }
-            const removeQuery = `UPDATE ${this.tableName} SET is_default = 0 WHERE customer_id = ? AND id != ?`;
-            console.log(removeQuery, [customerId, addressId])
-            const [removeDefault] = await conn.query<ResultSetHeader>(
-                removeQuery,
-                [customerId, addressId]
-            );
-
-            if (removeDefault.affectedRows < 1) {
-                throw new HttpException(400, 'Cập nhật địa chỉ mặc định thất bại', 'removeDefault');
-            }
-            const query = `UPDATE ${this.tableName} SET is_default = 1 WHERE id = ?`;
-            console.log(query, [addressId])
-            const [result] = await conn.query<ResultSetHeader>(query, [addressId]);
-            if (result.affectedRows < 1) {
-                throw new HttpException(400, 'Cập nhật địa chỉ mặc định thất bại', 'update');
-            }
-            await conn.commit();
-            return {
-                data: {
-                    id: addressId
-                }
-            }
-        } catch (error: any) {
-            await conn.rollback();
-            return new HttpException(400, error.message);
-        } finally {
-            conn.release();
-        }
-    }
+    // public update = async (addressId: number, customerId: number, seller_id: number) => {
+    //     console.log(addressId, customerId, seller_id)
+    //     const conn = await database.getConnection();
+    //     try {
+    //         await conn.beginTransaction();
+    //         const [exist] = await conn.query<RowDataPacket[]>(
+    //             `   select c.id, c.seller_id from customers c
+    //                 left join customer_address ca on ca.customer_id = c.id
+    //                 where ca.id = ?
+    //             `,
+    //             [addressId]
+    //         );
+    //         if (exist.length < 1) {
+    //             throw new HttpException(400, 'Địa chỉ không tồn tại', 'address_id');
+    //         }
+    //         if (exist[0].seller_id != seller_id || exist[0].id != customerId) {
+    //             throw new HttpException(400, 'Bạn không có quyền thực hiện thao tác này');
+    //         }
+    //         const removeQuery = `UPDATE ${this.tableName} SET is_default = 0 WHERE customer_id = ? AND id != ?`;
+    //         await conn.query<ResultSetHeader>(
+    //             removeQuery,
+    //             [customerId, addressId]
+    //         );
+    //         const query = `UPDATE ${this.tableName} SET is_default = 1 WHERE id = ?`;
+    //         console.log(query, [addressId])
+    //         const [result] = await conn.query<ResultSetHeader>(query, [addressId]);
+    //         if (result.affectedRows < 1) {
+    //             throw new HttpException(400, 'Cập nhật địa chỉ mặc định thất bại', 'update');
+    //         }
+    //         await conn.commit();
+    //         return {
+    //             data: {
+    //                 id: addressId
+    //             }
+    //         }
+    //     } catch (error: any) {
+    //         await conn.rollback();
+    //         return new HttpException(400, error.message);
+    //     } finally {
+    //         conn.release();
+    //     }
+    // }
 }
 
 export default CustomerAddressServices; 

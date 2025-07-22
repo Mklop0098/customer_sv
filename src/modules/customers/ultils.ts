@@ -1,4 +1,5 @@
 import { getCityMap, getWardMap } from "@core/utils/getAddress";
+import { PoolConnection, RowDataPacket } from "mysql2/promise";
 import moment from "moment";
 
 export const enrichCustomerAddresses = async (customers: any[]) => {
@@ -29,3 +30,12 @@ export const enrichCustomerAddresses = async (customers: any[]) => {
         };
     });
 };
+
+export const checkExistPhoneAndEmail = async (conn: PoolConnection, phone: string, email: string) => {
+    try {
+        const [result] = await conn.query<RowDataPacket[]>(`SELECT id FROM customers WHERE phone = ? OR email = ?`, [phone, email]);
+        return result.length > 0;
+    } catch (error) {
+        return false;
+    }
+}

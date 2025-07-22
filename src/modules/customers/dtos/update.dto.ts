@@ -1,5 +1,7 @@
-import { IsDateString, IsEmail, IsIn, IsISO8601, IsNotEmpty, IsOptional, IsString, Matches } from "class-validator";
+import { IsDateString, IsEmail, IsIn, IsISO8601, IsNotEmpty, IsOptional, IsString, Matches, ValidateNested } from "class-validator";
 import { IsBeforeToday } from "@core/utils/checkBirthDate";
+import { AddressDto } from "./address.dto";
+import { Type } from "class-transformer";
 
 export class Update {
     name?: string;
@@ -28,20 +30,21 @@ export class Update {
     @IsIn(['MALE', 'FEMALE', 'OTHER'], { message: 'Giới tính không hợp lệ' })
     gender?: string
 
-    @IsOptional()
     @IsBeforeToday({ message: 'Ngày sinh phải nhỏ hơn ngày hiện tại' })
+    @IsISO8601({ strict: true }, { message: 'Ngày sinh phải đúng định dạng YYYY-MM-DD'})
+    @IsOptional()
     birthdate?: string
     nickname?: string
     group_id?: number
     publish?: number
 
-    city_id?: number
-    ward_id?: number
-    address?: string
-    old_address?: string
-    address_type?: string
+    @IsOptional()
+    @ValidateNested()
+    @Type(() => AddressDto)
+    address?: AddressDto;
 
-    constructor(email?: string, name?: string, phone?: string, created_id?: number, customer_id?: number, seller_id?: number, transaction_code?: string, code?: string, gender?: string, birthdate?: string, nickname?: string, group_id?: number, publish?: number, city_id?: number, ward_id?: number, address?: string, old_address?: string, address_type?: string) {
+
+    constructor(email?: string, name?: string, phone?: string, created_id?: number, customer_id?: number, seller_id?: number, transaction_code?: string, code?: string, gender?: string, birthdate?: string, nickname?: string, group_id?: number, publish?: number, address?: AddressDto) {
         this.email = email;
         this.name = name;
         this.phone = phone;
@@ -55,10 +58,6 @@ export class Update {
         this.nickname = nickname
         this.group_id = group_id
         this.publish = publish
-        this.city_id = city_id
-        this.ward_id = ward_id
         this.address = address
-        this.old_address = old_address
-        this.address_type = address_type
     }
 }

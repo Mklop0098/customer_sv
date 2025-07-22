@@ -85,6 +85,7 @@ class CustomerServices {
     }
 
     public update = async (model: Update) => {
+        console.log(model);
         const conn = await database.getConnection();
         try {
             await conn.beginTransaction();
@@ -118,17 +119,13 @@ class CustomerServices {
                     },
                     transaction_code: model.transaction_code,
                 })
-                if (model.city_id && model.ward_id && model.address) {
+                if (model.address) {
                     await this.customerAddressService.create({
                         customer_id: insert,
                         name: model.name,
                         phone: model.phone,
-                        city_id: model.city_id,
-                        ward_id: model.ward_id,
-                        address: model.address,
-                        address_type: 'NHA_RIENG',
+                        ...model.address,
                         is_default: 1,
-                        old_address: model.old_address,
                         transaction_code: model.transaction_code
                     }, conn)
                 }
@@ -195,10 +192,29 @@ class CustomerServices {
                     throw new HttpException(400, errorMessages.UPDATE_FAILED, 'update');
                 }
                 const [defaultAddress] = await conn.query<RowDataPacket[]>(`SELECT id FROM customer_address WHERE customer_id = ? AND is_default = 1`, [model.customer_id]);
-                await this.customerAddressService.update({
-                    address_id: defaultAddress[0].id,
-                    ...model
-                }, conn)
+                if (model.address) {
+                    if (defaultAddress.length < 1) {
+                        await this.customerAddressService.create({
+                            customer_id: model.customer_id,
+                            name: model.name,
+                            phone: model.phone,
+                            ...model.address,
+                            is_default: 1,
+                            transaction_code: model.transaction_code
+                        }, conn)
+                    }
+                    else {
+                        await this.customerAddressService.update({
+                            address_id: defaultAddress[0].id,
+                            name: model.name,
+                            phone: model.phone,
+                            ...model.address,
+                            seller_id: model.seller_id,
+                            customer_id: model.customer_id,
+                            transaction_code: model.transaction_code
+                        }, conn)
+                    }
+                }
                 await this.eventStorageService.create(conn, {
                     table_name: this.tableName,
                     event_type: 'update',
@@ -211,8 +227,6 @@ class CustomerServices {
                     transaction_code: model.transaction_code,
                 })
             }
-
-
 
             await conn.commit();
             if (!exist) {

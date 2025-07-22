@@ -25,6 +25,8 @@ class CustomerController {
     public update = async (req: Request, res: Response, next: NextFunction) => {
         const model: Update = req.body as Update;
         model.customer_id = req.params.id as any;
+        model.created_id = req.id;
+        model.seller_id = req.seller_id;
         try {
             const result = await this.customerServices.update(model);
             if (result instanceof Error && result.field)
